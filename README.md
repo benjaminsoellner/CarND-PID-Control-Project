@@ -9,7 +9,7 @@
 
 This C++ project of the Udacity Self Driving Car Engineer Nanodegree implements a PID Controller to steer a vehicle on a given track. The track information as well as the control information (throttle + steering) are exchanged via a websocket interface with the Udacity Self Driving Car Simulator. The coefficients of the controller are trained with the "Twiddle" algorithm. [Here is a screencast video](https://youtu.be/87YHZ-wCMrs) that showcases successful project implementation by letting the car drive around the track for about 1 lap.
 
-<iframe width="560" height="315" src="https://www.youtube.com/embed/87YHZ-wCMrs" frameborder="0" allowfullscreen><noframe>[![The video thumbnail](http://img.youtube.com/vi/87YHZ-wCMrs/0.jpg)](https://youtu.be/KOli-GG-Ank)</noframe></iframe>
+[![The video thumbnail](http://img.youtube.com/vi/87YHZ-wCMrs/0.jpg)](https://youtu.be/KOli-GG-Ank)
 
 ## Reflection
 
