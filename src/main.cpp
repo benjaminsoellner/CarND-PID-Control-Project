@@ -1,3 +1,4 @@
+#define _USE_MATH_DEFINES
 #include <uWS/uWS.h>
 #include <iostream>
 #include "json.hpp"
@@ -6,6 +7,7 @@
 
 // for convenience
 using json = nlohmann::json;
+using namespace std;
 
 // For converting back and forth between radians and degrees.
 constexpr double pi() { return M_PI; }
@@ -32,10 +34,17 @@ int main()
 {
   uWS::Hub h;
 
-  PID pid;
-  // TODO: Initialize the pid variable.
+  // Initialize the controllers.
+  PID speed_pid, steer_pid;
+  // parameters found by trial-and-error
+  speed_pid.Init(.1, 1, .0001);
+  steer_pid.Init(0.114638203899845, 1.3948260829918, 0.000055);
+  // uncomment to learn parameters twiddle
+  // steer_pid.InitTwiddle(0.000936507, 0.0279796, 0, 2.63063e-05, 1500);
+  // steer_pid.InitTwiddle(0, 0, 0.00005, 0.0000001, 1500);
 
-  h.onMessage([&pid](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
+
+  h.onMessage([&steer_pid, &speed_pid](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
@@ -46,27 +55,46 @@ int main()
         auto j = json::parse(s);
         std::string event = j[0].get<std::string>();
         if (event == "telemetry") {
-          // j[1] is the data JSON object
-          double cte = std::stod(j[1]["cte"].get<std::string>());
-          double speed = std::stod(j[1]["speed"].get<std::string>());
-          double angle = std::stod(j[1]["steering_angle"].get<std::string>());
-          double steer_value;
-          /*
-          * TODO: Calcuate steering value here, remember the steering value is
-          * [-1, 1].
-          * NOTE: Feel free to play around with the throttle and speed. Maybe use
-          * another PID controller to control the speed!
-          */
-          
-          // DEBUG
-          std::cout << "CTE: " << cte << " Steering Value: " << steer_value << std::endl;
-
-          json msgJson;
-          msgJson["steering_angle"] = steer_value;
-          msgJson["throttle"] = 0.3;
-          auto msg = "42[\"steer\"," + msgJson.dump() + "]";
-          std::cout << msg << std::endl;
-          ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
+			// j[1] is the data JSON object
+			double cte = std::stod(j[1]["cte"].get<std::string>());
+			double speed = std::stod(j[1]["speed"].get<std::string>());
+			double angle = std::stod(j[1]["steering_angle"].get<std::string>());
+			// values to be controlled via PID
+			double steer_value, throttle_value;
+			// Get PID value for steering
+			steer_pid.UpdateError(cte);
+			steer_value = steer_pid.GetControl();
+			// Speed is between 10 and 30 mph depending on how steep the steering angle is
+			double target_speed = 20. * (1. - abs(steer_value)) + 10.;
+			// Speed PID is goverened by the "CTE" between target speed and current speed
+			speed_pid.UpdateError(speed - target_speed);
+			throttle_value = speed_pid.GetControl();
+			// Debug message
+			//std::cout << "CTE: " << cte << " Steering Value: " << steer_value << std::endl;
+			// Output to simulator
+			json msgJson;
+			msgJson["steering_angle"] = steer_value;
+			msgJson["throttle"] = throttle_value;
+			auto msg = "42[\"steer\"," + msgJson.dump() + "]";
+			//std::cout << msg << std::endl;
+			ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
+			// Twiddeling, if configured...
+			if (steer_pid.Twiddle()) {
+				json twiddle_json;
+				twiddle_json["controller"] = "steer_pid";
+				twiddle_json["Kp"] = steer_pid.Kp;
+				twiddle_json["Kd"] = steer_pid.Kd;	
+				twiddle_json["Ki"] = steer_pid.Ki;
+				std::cout << "Twiddle: " << twiddle_json.dump() << endl;
+			}
+			if (speed_pid.Twiddle()) {
+				json twiddle_json;
+				twiddle_json["controller"] = "speed_pid";
+				twiddle_json["Kp"] = speed_pid.Kp;
+				twiddle_json["Kd"] = speed_pid.Kd;
+				twiddle_json["Ki"] = speed_pid.Ki;
+				std::cout << "Twiddle: " << twiddle_json.dump() << endl;
+			}
         }
       } else {
         // Manual driving
@@ -101,7 +129,7 @@ int main()
   });
 
   int port = 4567;
-  if (h.listen(port))
+  if (h.listen("127.0.0.1", port))
   {
     std::cout << "Listening to port " << port << std::endl;
   }
